@@ -1,0 +1,22 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28"
+# (paris: no PUSH0 — runs on any EVM chain, Elysium / HyperEVM included)
+evm_version = "paris"
+optimizer = true
+optimizer_runs = 500
+remappings = ["@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/", "forge-std/=lib/forge-std/src/"]
+fs_permissions = [{ access = "read", path = "./skins.json" }]
+
+[fuzz]
+runs = 2000
+
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
+
+[rpc_endpoints]
+elysium_testnet = "https://testnet-rpc.elysium.kinetiq.xyz"

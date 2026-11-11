@@ -1,0 +1,472 @@
+{
+  "kinds": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "rarities": [
+    4,
+    4,
+    4,
+    4,
+    4,
+    4,
+    3,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    4,
+    4,
+    4,
+    4,
+    3,
+    3,
+    3,
+    3,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1
+  ],
+  "supplies": [
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    150,
+    150,
+    150,
+    150,
+    150,
+    300,
+    300,
+    300,
+    300,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    350,
+    800,
+    50,
+    50,
+    50,
+    50,
+    150,
+    150,
+    150,
+    150,
+    300,
+    300,
+    300,
+    350,
+    350,
+    350
+  ],
+  "skins": [
+    {
+      "skin": "ornate-golden",
+      "name": "Ornate Golden",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 1
+    },
+    {
+      "skin": "crimson-talon",
+      "name": "Crimson Talon",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 51
+    },
+    {
+      "skin": "moon-katana",
+      "name": "Moon Katana",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 101
+    },
+    {
+      "skin": "reef-leviathan",
+      "name": "Reef Leviathan",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 151
+    },
+    {
+      "skin": "kraken-corsair",
+      "name": "Kraken Corsair",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 201
+    },
+    {
+      "skin": "rotwood-skull",
+      "name": "Rotwood Skull",
+      "kind": "rod",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 251
+    },
+    {
+      "skin": "azure-frond",
+      "name": "Azure Frond",
+      "kind": "rod",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 301
+    },
+    {
+      "skin": "obsidian-rift",
+      "name": "Obsidian Rift",
+      "kind": "rod",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 451
+    },
+    {
+      "skin": "storm-dragon",
+      "name": "Storm Dragon",
+      "kind": "rod",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 601
+    },
+    {
+      "skin": "infernal-horn",
+      "name": "Infernal Horn",
+      "kind": "rod",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 751
+    },
+    {
+      "skin": "frost-scepter",
+      "name": "Frost Scepter",
+      "kind": "rod",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 901
+    },
+    {
+      "skin": "wraith-ribs",
+      "name": "Wraith Ribs",
+      "kind": "rod",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 1051
+    },
+    {
+      "skin": "cinder-fang",
+      "name": "Cinder Fang",
+      "kind": "rod",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 1351
+    },
+    {
+      "skin": "grave-warden",
+      "name": "Grave Warden",
+      "kind": "rod",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 1651
+    },
+    {
+      "skin": "amethyst-saber",
+      "name": "Amethyst Saber",
+      "kind": "rod",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 1951
+    },
+    {
+      "skin": "heartbloom",
+      "name": "Heartbloom",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 2251
+    },
+    {
+      "skin": "balloon-parade",
+      "name": "Balloon Parade",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 2601
+    },
+    {
+      "skin": "golden-trident",
+      "name": "Golden Trident",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 2951
+    },
+    {
+      "skin": "rose-seraph",
+      "name": "Rose Seraph",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 3301
+    },
+    {
+      "skin": "neon-coil",
+      "name": "Neon Coil",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 3651
+    },
+    {
+      "skin": "glacier-spire",
+      "name": "Glacier Spire",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 4001
+    },
+    {
+      "skin": "indigo-shade",
+      "name": "Indigo Shade",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 4351
+    },
+    {
+      "skin": "pale-vine",
+      "name": "Pale Vine",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 4701
+    },
+    {
+      "skin": "sunforged",
+      "name": "Sunforged",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 5051
+    },
+    {
+      "skin": "clover-charm",
+      "name": "Clover Charm",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 5401
+    },
+    {
+      "skin": "coral-needle",
+      "name": "Coral Needle",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 5751
+    },
+    {
+      "skin": "voltspring",
+      "name": "Voltspring",
+      "kind": "rod",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 6101
+    },
+    {
+      "skin": "fossil-rod",
+      "name": "Fossil Rod",
+      "kind": "rod",
+      "rarity": "common",
+      "supply": 800,
+      "start": 6451
+    },
+    {
+      "skin": "solar-ember",
+      "name": "Solar Ember",
+      "kind": "bobber",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 7251
+    },
+    {
+      "skin": "cyan-maelstrom",
+      "name": "Cyan Maelstrom",
+      "kind": "bobber",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 7301
+    },
+    {
+      "skin": "phantom-vortex",
+      "name": "Phantom Vortex",
+      "kind": "bobber",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 7351
+    },
+    {
+      "skin": "moonlit-halo",
+      "name": "Moonlit Halo",
+      "kind": "bobber",
+      "rarity": "legendary",
+      "supply": 50,
+      "start": 7401
+    },
+    {
+      "skin": "toxic-bubble",
+      "name": "Toxic Bubble",
+      "kind": "bobber",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 7451
+    },
+    {
+      "skin": "golden-nova",
+      "name": "Golden Nova",
+      "kind": "bobber",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 7601
+    },
+    {
+      "skin": "ashen-ring",
+      "name": "Ashen Ring",
+      "kind": "bobber",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 7751
+    },
+    {
+      "skin": "crystalized",
+      "name": "Crystalized",
+      "kind": "bobber",
+      "rarity": "epic",
+      "supply": 150,
+      "start": 7901
+    },
+    {
+      "skin": "heart-mist",
+      "name": "Heart Mist",
+      "kind": "bobber",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 8051
+    },
+    {
+      "skin": "crimson-eddy",
+      "name": "Crimson Eddy",
+      "kind": "bobber",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 8351
+    },
+    {
+      "skin": "tidal-eye",
+      "name": "Tidal Eye",
+      "kind": "bobber",
+      "rarity": "rare",
+      "supply": 300,
+      "start": 8651
+    },
+    {
+      "skin": "ironclad-halo",
+      "name": "Ironclad Halo",
+      "kind": "bobber",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 8951
+    },
+    {
+      "skin": "rose-supernova",
+      "name": "Rose Supernova",
+      "kind": "bobber",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 9301
+    },
+    {
+      "skin": "soul-plume",
+      "name": "Soul Plume",
+      "kind": "bobber",
+      "rarity": "uncommon",
+      "supply": 350,
+      "start": 9651
+    }
+  ]
+}

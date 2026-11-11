@@ -1,0 +1,8 @@
+# Foundry build output and caches
+out/
+cache/
+# dependencies (forge install OpenZeppelin/openzeppelin-contracts@v5.4.0 foundry-rs/forge-std --no-git)
+lib/
+# deployment records (addresses are in the project notes) — and never a key here
+broadcast/
+.env
