@@ -20,6 +20,7 @@ contract VipHandler is Test {
     uint256 public claims;
     uint256 public grants;
     uint256 public strangerClaims; // claims by the wallet not on the list (must stay 0)
+    uint256 public discounts;
     mapping(address => uint256) public lastUntil; // vipUntil as the handler last saw it
     mapping(address => uint256) public capAtSet; // now + a year when it last changed
     mapping(uint32 => mapping(address => uint256)) public claimsIn; // claims per round per wallet
@@ -115,6 +116,16 @@ contract VipHandler is Test {
         feed.setAnswer(int256(bound(rate, 1e6, 10_000e8)));
     }
 
+    /// the owner opens, changes or ends the discount (always a valid one)
+    function discount(uint256 window, uint16 a, uint16 b, uint16 c) external {
+        c = uint16(bound(c, 0, 9000));
+        b = uint16(bound(b, 0, c));
+        a = uint16(bound(a, 0, b));
+        vm.prank(owner);
+        vip.setDiscount(uint64(block.timestamp + bound(window, 0, 180 days)), a, b, c);
+        discounts++;
+    }
+
     function withdraw() external {
         uint256 bal = address(vip).balance;
         vm.prank(owner);
@@ -197,6 +208,23 @@ contract VipInvariantTest is Test {
         for (uint32 r = 0; r <= rounds; r++) {
             assertFalse(vip.claimed(r, stranger));
             for (uint256 i = 0; i < 4; i++) assertLe(handler.claimsIn(r, handler.actors(i)), 1);
+        }
+    }
+
+    /// whatever discount is open: none for less than 90 days, never more than 90 %, never less for a longer purchase,
+    /// never past 180 days from now, nothing once it has ended — and a purchase always costs something
+    function invariant_discount_within_bounds() public view {
+        uint256 until = vip.discountUntil();
+        assertLe(until, block.timestamp + 180 days);
+        uint256 last = 0;
+        for (uint256 p = 1; p <= 12; p++) {
+            uint256 off = vip.discountBps(p);
+            if (p < 3 || block.timestamp >= until) assertEq(off, 0);
+            assertLe(off, 9000);
+            assertGe(off, last);
+            last = off;
+            assertGt(vip.usdCost(p), 0);
+            assertLe(vip.usdCost(p), 12e8 * p);
         }
     }
 

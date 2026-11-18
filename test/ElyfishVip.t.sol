@@ -642,4 +642,155 @@ contract ElyfishVipTest is VipBase {
     function _ceil(uint256 a, uint256 b) private pure returns (uint256) {
         return (a + b - 1) / b;
     }
+
+    // ── the discount on longer purchases ────────────────────────────────────────────────────────────────────────
+
+    /// 20 / 30 / 40 % off 90 / 180 / 360 days, for 180 days
+    function _open() private {
+        vm.prank(owner);
+        vip.setDiscount(uint64(T0 + 180 days), 2000, 3000, 4000);
+    }
+
+    function test_no_discount_until_one_is_set() public view {
+        assertEq(vip.discountUntil(), 0);
+        for (uint256 p = 1; p <= 12; p++) {
+            assertEq(vip.discountBps(p), 0);
+            assertEq(vip.quote(p), expected(p));
+            assertEq(vip.usdCost(p), PRICE * p);
+        }
+    }
+
+    function test_discount_by_length() public {
+        vm.expectEmit(address(vip));
+        emit ElyfishVip.DiscountSet(uint64(T0 + 180 days), 2000, 3000, 4000);
+        _open();
+        // 30 and 60 days: full price
+        assertEq(vip.discountBps(1), 0);
+        assertEq(vip.discountBps(2), 0);
+        assertEq(vip.quote(1), 0.48 ether);
+        // 90 days: $36 → $28.80 = 1.152 HYPE at $25
+        assertEq(vip.discountBps(3), 2000);
+        assertEq(vip.usdCost(3), 28.8e8);
+        assertEq(vip.quote(3), 1.152 ether);
+        // 180 days: $72 → $50.40 = 2.016 HYPE
+        assertEq(vip.discountBps(6), 3000);
+        assertEq(vip.usdCost(6), 50.4e8);
+        assertEq(vip.quote(6), 2.016 ether);
+        // 360 days: $144 → $86.40 = 3.456 HYPE
+        assertEq(vip.discountBps(12), 4000);
+        assertEq(vip.usdCost(12), 86.4e8);
+        assertEq(vip.quote(12), 3.456 ether);
+        // in between: the tier below
+        assertEq(vip.discountBps(5), 2000);
+        assertEq(vip.discountBps(11), 3000);
+    }
+
+    function test_buying_at_the_discount() public {
+        _open();
+        uint256 before = alice.balance;
+        vm.expectEmit(address(vip));
+        emit ElyfishVip.VipBought(alice, alice, 12, 3.456 ether, uint64(T0 + 360 days));
+        vm.prank(alice);
+        vip.buy{value: 5 ether}(12);
+        // 360 days for the discounted price, the rest came back
+        assertEq(vip.vipUntil(alice), T0 + 360 days);
+        assertEq(alice.balance, before - 3.456 ether);
+        assertEq(address(vip).balance, 3.456 ether);
+        // a wei under the discounted price buys nothing
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSelector(ElyfishVip.Underpaid.selector, 1.152 ether, 1.152 ether - 1));
+        vip.buy{value: 1.152 ether - 1}(3);
+        // a gift gets it too
+        vm.prank(bob);
+        vip.buyFor{value: 2.016 ether}(carol, 6);
+        assertEq(vip.vipUntil(carol), T0 + 180 days);
+    }
+
+    function test_discount_ends_by_itself() public {
+        _open();
+        // the last second of it
+        vm.warp(T0 + 180 days - 1);
+        vm.prank(owner);
+        feed.setAnswer(25e8);
+        assertEq(vip.discountBps(12), 4000);
+        assertEq(vip.quote(12), 3.456 ether);
+        // … and the moment it is over: full price again, with nobody doing anything
+        vm.warp(T0 + 180 days);
+        assertEq(vip.discountBps(3), 0);
+        assertEq(vip.discountBps(12), 0);
+        assertEq(vip.quote(12), 5.76 ether);
+        assertEq(vip.usdCost(12), 144e8);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(ElyfishVip.Underpaid.selector, 5.76 ether, 3.456 ether));
+        vip.buy{value: 3.456 ether}(12);
+    }
+
+    function test_setDiscount_limits() public {
+        vm.startPrank(owner);
+        // never longer than 180 days from now
+        vm.expectRevert(ElyfishVip.BadDiscount.selector);
+        vip.setDiscount(uint64(T0 + 180 days + 1), 2000, 3000, 4000);
+        // never more than 90 % off
+        vm.expectRevert(ElyfishVip.BadDiscount.selector);
+        vip.setDiscount(uint64(T0 + 30 days), 2000, 3000, 9001);
+        // a longer purchase never gets less off than a shorter one
+        vm.expectRevert(ElyfishVip.BadDiscount.selector);
+        vip.setDiscount(uint64(T0 + 30 days), 3000, 2000, 4000);
+        vm.expectRevert(ElyfishVip.BadDiscount.selector);
+        vip.setDiscount(uint64(T0 + 30 days), 2000, 5000, 4000);
+        // the most allowed
+        vip.setDiscount(uint64(T0 + 180 days), 9000, 9000, 9000);
+        assertEq(vip.usdCost(12), 14.4e8);
+        // changed
+        vip.setDiscount(uint64(T0 + 10 days), 0, 1000, 2500);
+        assertEq(vip.discountBps(3), 0);
+        assertEq(vip.discountBps(6), 1000);
+        assertEq(vip.discountBps(12), 2500);
+        // ended at once
+        vip.setDiscount(uint64(T0), 0, 1000, 2500);
+        assertEq(vip.discountBps(12), 0);
+        vip.setDiscount(0, 0, 0, 0);
+        assertEq(vip.discountUntil(), 0);
+        vm.stopPrank();
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
+        vip.setDiscount(uint64(T0 + 1 days), 1, 2, 3);
+    }
+
+    function test_usdCost_rejects_bad_periods() public {
+        vm.expectRevert(abi.encodeWithSelector(ElyfishVip.BadPeriods.selector, 0));
+        vip.usdCost(0);
+        vm.expectRevert(abi.encodeWithSelector(ElyfishVip.BadPeriods.selector, 13));
+        vip.usdCost(13);
+    }
+
+    /// any discount, any moment, any length: the price is the full one less exactly the tier's share while it runs and
+    /// the full one after; it is never free, never above the full price, and the days bought are the same
+    function testFuzz_discount(uint256 window, uint16 a, uint16 b, uint16 c, uint256 wait, uint256 periods, uint256 rate) public {
+        window = bound(window, 0, 180 days);
+        c = uint16(bound(c, 0, 9000));
+        b = uint16(bound(b, 0, c));
+        a = uint16(bound(a, 0, b));
+        periods = bound(periods, 1, 12);
+        rate = bound(rate, 1e6, 10_000e8);
+        vm.prank(owner);
+        vip.setDiscount(uint64(T0 + window), a, b, c);
+        wait = bound(wait, 0, 400 days);
+        vm.warp(T0 + wait);
+        vm.prank(owner);
+        feed.setAnswer(int256(rate));
+        uint256 off = wait < window ? (periods >= 12 ? c : periods >= 6 ? b : periods >= 3 ? a : 0) : 0;
+        assertEq(vip.discountBps(periods), off);
+        uint256 full = _ceil(PRICE * periods * 1e8 * 1e18, rate * 1e8);
+        uint256 cost = vip.quote(periods);
+        assertEq(cost, _ceil(PRICE * periods * (10_000 - off) * 1e8 * 1e18, rate * 1e8 * 10_000));
+        assertLe(cost, full);
+        assertGt(cost, 0);
+        assertGe(cost * 10, full - 10); // (at least a tenth of the full price: 90 % is the most off)
+        vm.deal(carol, cost);
+        vm.prank(carol);
+        vip.buy{value: cost}(periods);
+        assertEq(vip.vipUntil(carol), T0 + wait + periods * 30 days);
+        assertEq(carol.balance, 0);
+    }
 }

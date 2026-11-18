@@ -19,6 +19,10 @@ abstract contract Base is Test {
     uint256[5] internal prices = [uint256(2e8), 5e8, 10e8, 20e8, 50e8];
     string internal constant BASE = "https://cdn.elyfish.xyz/nft/v1/";
     string internal constant CONTRACT = "https://cdn.elyfish.xyz/nft/v1/collection.json";
+    /// a round lasts a week; ALL: so many skins a round that every skin is always on sale (the tests that are not
+    /// about the rotation)
+    uint64 internal constant PERIOD = 604_800;
+    uint16 internal constant ALL = 10_000;
 
     function setUp() public virtual {
         vm.warp(1_800_000_000);
@@ -38,7 +42,17 @@ abstract contract Base is Test {
     }
 
     function deploy(address f) internal returns (ElyfishSkins) {
-        return new ElyfishSkins(owner, f, 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, prices);
+        return new ElyfishSkins(owner, f, 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, sale(prices));
+    }
+
+    /// these prices, every skin on sale from now on
+    function sale(uint256[5] memory usd) internal pure returns (ElyfishSkins.Sale memory) {
+        return ElyfishSkins.Sale({usd: usd, launch: 0, period: PERIOD, perRound: ALL});
+    }
+
+    /// the shipped prices, the first round at `at` (0 = now), rounds of `every` seconds with `each` skins on sale
+    function saleAt(uint64 at, uint64 every, uint16 each) internal view returns (ElyfishSkins.Sale memory) {
+        return ElyfishSkins.Sale({usd: prices, launch: at, period: every, perRound: each});
     }
 
     /// what n tokens of this skin cost at the feed's rate, worked out here independently (rounded up)

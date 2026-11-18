@@ -15,6 +15,8 @@ import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 /// 30 days at a flat US-dollar price, paid in the chain's native coin (HYPE) at the HYPE / USD rate of a Chainlink price
 /// feed. More time adds on to what is left, up to a year ahead. The owner can also give VIP away: straight to a list of
 /// wallets (`grant`), or as an airdrop the eligible wallets claim themselves (`claimAirdrop`, a Merkle tree of wallets).
+/// Longer purchases can be cheaper for a while: the owner opens a discount for 90, 180 and 360 days (3, 6 and 12 periods
+/// in one purchase) that ends by itself — at most 180 days after it was set — and from then on every period is full price.
 contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
     /// @notice one VIP period
     uint256 public constant PERIOD = 30 days;
@@ -30,6 +32,15 @@ contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
     uint256 public constant MAX_BATCH = 500;
     /// @notice most days one grant or airdrop round gives
     uint32 public constant MAX_GIFT_DAYS = 365;
+    /// @notice a discount is in basis points (10,000 = the whole price) and never more than 90 %: VIP is never free
+    uint256 public constant BPS = 10_000;
+    uint16 public constant MAX_DISCOUNT_BPS = 9_000;
+    /// @notice a discount ends at most this long after it was set (it can be set again, never left open for good)
+    uint256 public constant MAX_DISCOUNT_WINDOW = 180 days;
+    /// @notice a purchase of at least this many periods gets the 90-, 180-, 360-day discount
+    uint256 public constant TIER_90 = 3;
+    uint256 public constant TIER_180 = 6;
+    uint256 public constant TIER_360 = 12;
 
     /// @notice the price of one 30-day period, USD with 8 decimals
     uint256 public usdPrice;
@@ -47,11 +58,19 @@ contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
     /// @notice whether a wallet has claimed a given airdrop round
     mapping(uint32 round => mapping(address wallet => bool)) public claimed;
 
+    /// @notice the discount on longer purchases: it holds while `block.timestamp < discountUntil` (0 = none), and takes
+    /// `discount90` / `discount180` / `discount360` basis points off a purchase of at least 3 / 6 / 12 periods
+    uint64 public discountUntil;
+    uint16 public discount90;
+    uint16 public discount180;
+    uint16 public discount360;
+
     event VipBought(address indexed payer, address indexed wallet, uint256 periods, uint256 paid, uint64 until);
     event VipGranted(address indexed wallet, uint32 days_, uint64 until);
     event AirdropOpened(uint32 indexed round, bytes32 root, uint32 days_);
     event AirdropClaimed(uint32 indexed round, address indexed wallet, uint64 until);
     event PriceSet(uint256 usd);
+    event DiscountSet(uint64 until, uint16 bps90, uint16 bps180, uint16 bps360);
     event PriceFeedSet(address indexed feed, uint256 maxStaleness);
     event Withdrawn(address indexed to, uint256 amount);
 
@@ -62,6 +81,7 @@ contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
     error StalePrice(uint256 updatedAt);
     error BadFeed();
     error PriceTooHigh(uint256 usd);
+    error BadDiscount();
     error ZeroAddress();
     error BadBatch(uint256 size);
     error BadDays(uint32 days_);
@@ -98,12 +118,29 @@ contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
         if (msg.value > cost) _send(payable(msg.sender), msg.value - cost);
     }
 
-    /// @notice what `periods` × 30 days cost now, in HYPE (wei, 18 decimals), rounded up
+    /// @notice what `periods` × 30 days cost now, in HYPE (wei, 18 decimals), rounded up — the discount for a longer
+    /// purchase already taken off while it runs
     function quote(uint256 periods) public view returns (uint256) {
         if (periods == 0 || periods > MAX_PERIODS) revert BadPeriods(periods);
         (uint256 rate, uint8 dec) = hypeUsd();
-        // usd (8 decimals) / rate (dec decimals) HYPE, as wei: usd · 10^dec · 10^18 / (rate · 10^8)
-        return Math.mulDiv(usdPrice * periods * 10 ** dec, 1e18, rate * 1e8, Math.Rounding.Ceil);
+        // usd (8 decimals) / rate (dec decimals) HYPE, as wei: usd · 10^dec · 10^18 / (rate · 10^8); of that, the share
+        // left after the discount: (BPS − discount) / BPS
+        return Math.mulDiv(usdPrice * periods * (BPS - discountBps(periods)) * 10 ** dec, 1e18, rate * 1e8 * BPS, Math.Rounding.Ceil);
+    }
+
+    /// @notice the discount a purchase of `periods` gets right now, in basis points (0 once the discount has ended)
+    function discountBps(uint256 periods) public view returns (uint256) {
+        if (block.timestamp >= discountUntil) return 0;
+        if (periods >= TIER_360) return discount360;
+        if (periods >= TIER_180) return discount180;
+        if (periods >= TIER_90) return discount90;
+        return 0;
+    }
+
+    /// @notice what `periods` × 30 days cost in USD (8 decimals) right now, the discount taken off
+    function usdCost(uint256 periods) external view returns (uint256) {
+        if (periods == 0 || periods > MAX_PERIODS) revert BadPeriods(periods);
+        return usdPrice * periods * (BPS - discountBps(periods)) / BPS;
     }
 
     /// @notice the HYPE / USD rate from the feed, checked: positive, from a finished round, not too old
@@ -177,6 +214,16 @@ contract ElyfishVip is Ownable2Step, Pausable, ReentrancyGuard {
 
     function setPrice(uint256 usd) external onlyOwner {
         _setPrice(usd);
+    }
+
+    /// @notice open (or change, or end) the discount on longer purchases: it runs until `until` — at most 180 days from
+    /// now — and takes `bps90` / `bps180` / `bps360` basis points off 3 / 6 / 12 periods bought at once. A longer
+    /// purchase never gets less off than a shorter one. `until` now or earlier ends it at once.
+    function setDiscount(uint64 until, uint16 bps90, uint16 bps180, uint16 bps360) external onlyOwner {
+        if (until > block.timestamp + MAX_DISCOUNT_WINDOW) revert BadDiscount();
+        if (bps360 > MAX_DISCOUNT_BPS || bps90 > bps180 || bps180 > bps360) revert BadDiscount();
+        (discountUntil, discount90, discount180, discount360) = (until, bps90, bps180, bps360);
+        emit DiscountSet(until, bps90, bps180, bps360);
     }
 
     function setPriceFeed(address feed, uint256 maxStaleness_) external onlyOwner {

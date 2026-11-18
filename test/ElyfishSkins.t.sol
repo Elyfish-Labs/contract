@@ -103,51 +103,51 @@ contract ElyfishSkinsTest is Base {
         uint16[] memory s = new uint16[](1);
         s[0] = 10_000;
         // fine: one skin of all 10,000
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, sale(prices));
         // not adding up to 10,000
         s[0] = 9_999;
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, sale(prices));
         // no skins / lengths that don't match
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, new uint8[](0), new uint8[](0), new uint16[](0), prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, new uint8[](0), new uint8[](0), new uint16[](0), sale(prices));
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, new uint8[](2), s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, new uint8[](2), s, sale(prices));
         // a bad kind / rarity / an empty skin / more than 10,000
         s[0] = 10_000;
         k[0] = 2;
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, sale(prices));
         k[0] = 0;
         r[0] = 5;
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, sale(prices));
         r[0] = 0;
         s[0] = 0;
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k, r, s, sale(prices));
         uint8[] memory k2 = new uint8[](2);
         uint8[] memory r2 = new uint8[](2);
         uint16[] memory s2 = new uint16[](2);
         s2[0] = 10_000;
         s2[1] = 1;
         vm.expectRevert(ElyfishSkins.BadSkins.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k2, r2, s2, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, k2, r2, s2, sale(prices));
     }
 
     function test_ConstructorRejectsBadSettings() public {
         vm.expectRevert(ElyfishSkins.BadFeed.selector);
-        new ElyfishSkins(owner, address(0), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, prices);
+        new ElyfishSkins(owner, address(0), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, sale(prices));
         vm.expectRevert(ElyfishSkins.BadFeed.selector);
-        new ElyfishSkins(owner, address(feed), 0, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, prices);
+        new ElyfishSkins(owner, address(feed), 0, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, sale(prices));
         vm.expectRevert(ElyfishSkins.BadRoyalty.selector);
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 1_001, kinds, rarities, supplies, prices);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 1_001, kinds, rarities, supplies, sale(prices));
         uint256[5] memory p = prices;
         p[4] = 100_001e8;
         vm.expectRevert(abi.encodeWithSelector(ElyfishSkins.PriceTooHigh.selector, 100_001e8));
-        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, p);
+        new ElyfishSkins(owner, address(feed), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, sale(p));
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableInvalidOwner.selector, address(0)));
-        new ElyfishSkins(address(0), address(feed), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, prices);
+        new ElyfishSkins(address(0), address(feed), 1 hours, BASE, CONTRACT, treasury, 500, kinds, rarities, supplies, sale(prices));
     }
 
     // ------------------------------------------------------------------ minting

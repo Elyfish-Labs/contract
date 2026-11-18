@@ -11,6 +11,9 @@ import {MockPriceFeed} from "../src/testnet/MockPriceFeed.sol";
 ///                 starting at HYPE_USD (8 decimals; default $51.28) — its owner moves it (setAnswer)
 ///   STALENESS     the oldest feed answer a mint accepts, seconds (default 1 day; a mock: 7 days)
 ///   BASE_URI / CONTRACT_URI   the metadata on the CDN
+///   LAUNCH        when the first round starts (one legendary and one epic on sale), a Unix time (default: now)
+///   PERIOD        how long a round lasts, seconds (default 604,800 = one week)
+///   PER_ROUND     how many skins are on sale in a round (default 2)
 ///
 ///   forge script script/Deploy.s.sol --rpc-url elysium_testnet --broadcast
 contract Deploy is Script {
@@ -48,7 +51,7 @@ contract Deploy is Script {
             kinds,
             rarities,
             supplies,
-            prices
+            ElyfishSkins.Sale({usd: prices, launch: uint64(vm.envOr("LAUNCH", uint256(0))), period: uint64(vm.envOr("PERIOD", uint256(604_800))), perRound: uint16(vm.envOr("PER_ROUND", uint256(2)))})
         );
         vm.stopBroadcast();
 

@@ -19,6 +19,11 @@ import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 /// skin; the price is set in US dollars per rarity and paid in the chain's native coin (HYPE) at the HYPE / USD rate
 /// of a Chainlink price feed. The metadata (JSON + image) lives on the game's CDN: the look and the in-game bonus
 /// there may be updated, which is announced to marketplaces with the ERC-4906 events.
+/// The skins are not all on sale at once: they take turns. Time runs in rounds of `period` (one week) from the
+/// launch, and in every round `perRound` skins (two) are on sale — in the first round one legendary and one epic, in the
+/// rounds after it the others, two by two, in an order shuffled once when the collection is deployed. When a round
+/// ends its two skins close and the next two open. Once every skin has had its round the order starts again, so a
+/// skin that was not sold out comes back on sale. Nobody, the owner included, can change the order or the clock.
 /// OpenSea: ERC-721 metadata (tokenURI), contractURI (ERC-7572), royalties (ERC-2981), metadata refresh (ERC-4906).
 contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuard, IERC4906 {
     using Strings for uint256;
@@ -36,6 +41,11 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     uint256 public constant MAX_USD_PRICE = 100_000e8;
     /// @notice a price older than this can never be accepted, whatever maxStaleness says
     uint256 public constant MAX_STALENESS_CAP = 7 days;
+    /// @notice the first round's two skins are one of each of these rarities
+    uint8 public constant EPIC = 3;
+    uint8 public constant LEGENDARY = 4;
+    /// @notice the longest a round may last
+    uint256 public constant MAX_PERIOD = 30 days;
 
     struct Skin {
         uint8 kind; // ROD / BOBBER
@@ -43,6 +53,14 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
         uint16 start; // its first token id
         uint16 supply; // how many tokens it has (ids start .. start + supply - 1)
         uint16 minted; // how many are minted so far (always the lowest ids of its block)
+    }
+
+    /// what a mint costs and when the skins open (one constructor argument)
+    struct Sale {
+        uint256[RARITIES] usd; // the price of one token per rarity, USD with 8 decimals
+        uint64 launch; // when the first round starts, a Unix time (0 = now, at deployment)
+        uint64 period; // how long a round lasts, in seconds (604,800 = one week)
+        uint16 perRound; // how many skins are on sale in a round (2)
     }
 
     Skin[] private _skins;
@@ -55,6 +73,18 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     uint256 public maxStaleness;
     string private _baseTokenURI;
     string private _contractURI;
+    /// @notice when the first round starts (one legendary and one epic on sale)
+    uint64 public immutable launch;
+    /// @notice how long a round lasts, in seconds: its skins are on sale that long, then the next ones are
+    uint64 public immutable period;
+    /// @notice how many skins are on sale in a round
+    uint256 public immutable perRound;
+    /// @notice how many rounds it takes until every skin has been on sale once; then the order starts again
+    uint64 public immutable cycle;
+    /// @dev the skins in the order they go on sale, PER_ROUND a round — written once in the constructor, never again
+    uint16[] private _order;
+    /// @dev per skin: the round of the cycle it is on sale in
+    uint16[] private _turn;
 
     event SkinsMinted(address indexed to, uint256 indexed skinId, uint256 firstTokenId, uint256 quantity, uint256 paid);
     event PriceSet(uint8 indexed rarity, uint256 usd);
@@ -78,6 +108,9 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     error ZeroAddress();
     error TransferFailed();
     error NotAToken(uint256 tokenId);
+    error BadSchedule();
+    error NotStarted();
+    error NotOnSale(uint256 skinId);
 
     /// @param owner_ who manages the collection (prices, feed, metadata, funds)
     /// @param feed the HYPE / USD price feed (Chainlink, or MockPriceFeed on a testnet without one)
@@ -89,7 +122,7 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     /// @param kinds per skin: ROD or BOBBER
     /// @param rarities per skin: 0..4
     /// @param supplies per skin: its number of tokens; all together exactly MAX_SUPPLY
-    /// @param prices per rarity: USD with 8 decimals
+    /// @param sale the prices per rarity and the release schedule (see Sale)
     constructor(
         address owner_,
         address feed,
@@ -101,7 +134,7 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
         uint8[] memory kinds,
         uint8[] memory rarities,
         uint16[] memory supplies,
-        uint256[RARITIES] memory prices
+        Sale memory sale
     ) ERC721("Elyfish", "ELYFISH") Ownable(owner_) {
         uint256 n = kinds.length;
         if (n == 0 || rarities.length != n || supplies.length != n) revert BadSkins();
@@ -116,10 +149,57 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
         }
         if (next != MAX_SUPPLY + 1) revert BadSkins();
         _setFeed(feed, maxStaleness_);
-        for (uint8 r = 0; r < RARITIES; r++) _setPrice(r, prices[r]);
+        for (uint8 r = 0; r < RARITIES; r++) _setPrice(r, sale.usd[r]);
         _setRoyalty(royaltyReceiver, royaltyBps);
         _baseTokenURI = baseURI_;
         _contractURI = contractURI_;
+        if (sale.period == 0 || sale.period > MAX_PERIOD || sale.perRound == 0) revert BadSchedule();
+        // (a timestamp fits 64 bits for the next 500 billion years)
+        // forge-lint: disable-next-line(unsafe-typecast)
+        if (sale.launch == 0) sale.launch = uint64(block.timestamp);
+        launch = sale.launch;
+        period = sale.period;
+        perRound = sale.perRound;
+        _shuffle(rarities, sale.perRound);
+        // (at most 10,000 skins)
+        // forge-lint: disable-next-line(unsafe-typecast)
+        cycle = uint64((n + sale.perRound - 1) / sale.perRound);
+    }
+
+    /// @dev the order the skins go on sale in. All skins are shuffled (Fisher–Yates, seeded by the block this runs
+    /// in); then a legendary is brought to the front and an epic next to it (the first of each in the shuffled
+    /// order), so the first round is one legendary and one epic. _turn[skin] = the round of the cycle it is sold in
+    /// (`each` skins a round).
+    function _shuffle(uint8[] memory rarities, uint256 each) private {
+        uint256 n = rarities.length;
+        uint256[] memory order = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) order[i] = i;
+        uint256 seed = uint256(keccak256(abi.encode(block.timestamp, block.prevrandao, address(this), launch)));
+        for (uint256 j = n; j > 1; j--) {
+            seed = uint256(keccak256(abi.encode(seed)));
+            uint256 k = seed % j;
+            (order[k], order[j - 1]) = (order[j - 1], order[k]);
+        }
+        for (uint256 j = 0; j < n; j++) {
+            if (rarities[order[j]] == LEGENDARY) {
+                (order[0], order[j]) = (order[j], order[0]);
+                break;
+            }
+        }
+        for (uint256 j = 1; j < n; j++) {
+            if (rarities[order[j]] == EPIC) {
+                (order[1], order[j]) = (order[j], order[1]);
+                break;
+            }
+        }
+        for (uint256 i = 0; i < n; i++) _turn.push(0);
+        for (uint256 j = 0; j < n; j++) {
+            // (at most 10,000 skins: far inside 16 bits)
+            // forge-lint: disable-next-line(unsafe-typecast)
+            _order.push(uint16(order[j]));
+            // forge-lint: disable-next-line(unsafe-typecast)
+            _turn[order[j]] = uint16(j / each);
+        }
     }
 
     // ------------------------------------------------------------------ minting
@@ -134,7 +214,7 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
         if (msg.value > cost) _send(payable(msg.sender), msg.value - cost);
     }
 
-    /// @notice the owner's free mint from the same supply (giveaways, prizes, the team)
+    /// @notice the owner's free mint from the same supply (giveaways, prizes, the team) — only of the skins on sale
     function reserveMint(address to, uint256 skinId, uint256 quantity) external onlyOwner nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         uint256 first = _mintSkin(to, skinId, quantity);
@@ -166,6 +246,7 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     function _mintSkin(address to, uint256 skinId, uint256 quantity) private returns (uint256 first) {
         if (quantity == 0 || quantity > MAX_PER_TX) revert BadQuantity(quantity);
         Skin storage s = _skin(skinId);
+        if (!_onSale(skinId)) revert NotOnSale(skinId);
         uint256 left = uint256(s.supply) - s.minted;
         if (quantity > left) revert SoldOut(skinId, left);
         first = uint256(s.start) + s.minted;
@@ -192,6 +273,30 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     /// @notice every skin at once (the mint page reads them in one call)
     function allSkins() external view returns (Skin[] memory) {
         return _skins;
+    }
+
+    /// @notice the round the sale is in: 0 from the launch, one more each `period` (reverts before the launch)
+    function round() public view returns (uint256) {
+        if (block.timestamp < launch) revert NotStarted();
+        return (block.timestamp - launch) / period;
+    }
+
+    /// @notice is this skin on sale now? (its round of the cycle is the one running)
+    function isOpen(uint256 skinId) external view returns (bool) {
+        _skin(skinId);
+        return _onSale(skinId);
+    }
+
+    /// @notice the skins on sale now (none before the launch), and when this round ends and the next skins open
+    function onSale() external view returns (uint256[] memory skinIds, uint256 closesAt) {
+        if (block.timestamp < launch) return (new uint256[](0), launch);
+        uint256 r = (block.timestamp - launch) / period;
+        closesAt = uint256(launch) + (r + 1) * period;
+        uint256 from = (r % cycle) * perRound;
+        uint256 n = _order.length;
+        uint256 to = from + perRound > n ? n : from + perRound;
+        skinIds = new uint256[](to - from);
+        for (uint256 i = from; i < to; i++) skinIds[i - from] = _order[i];
     }
 
     /// @notice tokens of this skin still to mint
@@ -278,6 +383,11 @@ contract ElyfishSkins is ERC721, ERC2981, Ownable2Step, Pausable, ReentrancyGuar
     }
 
     // ------------------------------------------------------------------ internals
+
+    function _onSale(uint256 skinId) private view returns (bool) {
+        if (block.timestamp < launch) return false;
+        return ((block.timestamp - launch) / period) % cycle == _turn[skinId];
+    }
 
     function _skin(uint256 skinId) private view returns (Skin storage) {
         if (skinId >= _skins.length) revert UnknownSkin(skinId);

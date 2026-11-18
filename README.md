@@ -2,7 +2,7 @@
 
 ![Solidity](https://img.shields.io/badge/solidity-0.8.28-363636?logo=solidity)
 ![Foundry](https://img.shields.io/badge/built%20with-Foundry-1f2937)
-![Tests](https://img.shields.io/badge/tests-164%20passing-38bdf8)
+![Tests](https://img.shields.io/badge/tests-191%20passing-38bdf8)
 ![Coverage](https://img.shields.io/badge/line%20coverage-99.8%25-38bdf8)
 ![Network](https://img.shields.io/badge/network-Elysium%20testnet-0a1220)
 
@@ -23,9 +23,9 @@ is split on chain: part goes to the platform, part to the community, and part bu
 
 | Contract | What it does |
 |---|---|
-| [`ElyfishVip`](src/ElyfishVip.sol) | VIP at $12 per 30 days, paid in HYPE at the HYPE / USD feed rate. Buy for yourself or as a gift. The owner can grant VIP and run Merkle airdrop rounds. |
+| [`ElyfishVip`](src/ElyfishVip.sol) | VIP at $12 per 30 days, paid in HYPE at the HYPE / USD feed rate. Buy for yourself or as a gift. Longer purchases can be cheaper for a while: a discount on 90, 180 and 360 days that ends by itself, at most 180 days after it was set. The owner can grant VIP and run Merkle airdrop rounds. |
 | [`ElyfishPetEggs`](src/ElyfishPetEggs.sol) | Pet egg packs: 10 eggs for $5. The contract counts each wallet's packs; the game server hatches them once. |
-| [`ElyfishSkins`](src/ElyfishSkins.sol) | ERC-721 rods and bobbers: 10,000 tokens, priced in USD per rarity, with ERC-2981 royalties and ERC-4906 metadata refresh. |
+| [`ElyfishSkins`](src/ElyfishSkins.sol) | ERC-721 rods and bobbers: 10,000 tokens, priced in USD per rarity, with ERC-2981 royalties and ERC-4906 metadata refresh. A rotation fixed at deployment: two skins are on sale each week (one legendary and one epic in the first), in a shuffled order that starts again after every skin has had its week. |
 | [`ElyfishTradingPost`](src/ElyfishTradingPost.sol) | A player-to-player market. The game server signs each listing (EIP-712). The buyer pays the seller 97 % and the trading post keeps a 3 % fee. |
 | [`ElyfishRevenue`](src/ElyfishRevenue.sol) | Owns the four contracts above and splits their revenue. It pays the platform and community wallets, then buys back the game token through the launchpad router and burns it. |
 | [`ILaunchRouter`](src/interfaces/ILaunchRouter.sol) | The part of the [Montra](https://montramarkets.xyz) LaunchRouter the buyback uses (Uniswap v4 pool key, exact-input swap). |
@@ -68,9 +68,9 @@ Elysium testnet (chain id `99801`, RPC `https://testnet-rpc.elysium.kinetiq.xyz`
 | Contract | Address |
 |---|---|
 | ElyfishRevenue | `0xDAdA65B98227723678D61988A62569469B70C77c` |
-| ElyfishVip | `0xe2F4B6F43404A6f1767123e7e5436909E57E9Dd9` |
+| ElyfishVip | `0xb3e567dFd03128f9ab1B36b889E47bCaf7463da5` |
 | ElyfishPetEggs | `0x52281FA594127bc7ebCD8D10bbE3beab3D9eEf02` |
-| ElyfishSkins | `0xfF4fB974F27F3B4A40fb624d863DfD193C267D7C` |
+| ElyfishSkins | `0x8404b3D909a4Cff37D4BD2fb127B6f7B5F18C046` |
 | ElyfishTradingPost | `0xD77D4D6eFe78aaeDF5657d07032BCa9379ddC756` |
 | MockPriceFeed (HYPE / USD) | `0x9B76127f05e951687dED0853A9589429126b2E7E` |
 | MockLaunchToken (mFISH) | `0x80a6Fa43C40480a2Ec8369592Ca3e92EdcF31fe3` |
@@ -86,16 +86,19 @@ replaced by a real HYPE / USD feed, the game token from the Montra launchpad and
 
 | Suite | Unit | Fuzz | Invariant | Result |
 |---|---|---|---|---|
-| ElyfishVip | 31 | 5 | — | ✅ 36 / 36 |
+| ElyfishVip | 37 | 6 | — | ✅ 43 / 43 |
 | ElyfishPetEggs | 16 | 2 | — | ✅ 18 / 18 |
 | ElyfishSkins | 28 | 7 | — | ✅ 35 / 35 |
+| SkinsSchedule (the weekly rotation) | 11 | 3 | — | ✅ 14 / 14 |
 | ElyfishTradingPost | 22 | 5 | — | ✅ 27 / 27 |
 | ElyfishRevenue | 27 | 3 | — | ✅ 30 / 30 |
-| VipInvariant | — | — | 4 | ✅ 4 / 4 |
+| VipInvariant | — | — | 5 | ✅ 5 / 5 |
 | Invariant (skins) | — | — | 5 | ✅ 5 / 5 |
+| ScheduleInvariant (skins) | — | — | 4 | ✅ 4 / 4 |
 | TradingPostInvariant | — | — | 4 | ✅ 4 / 4 |
 | RevenueInvariant | — | — | 5 | ✅ 5 / 5 |
-| **Total** | **124** | **22** | **18** | **✅ 164 / 164** |
+| LiveCheck (the deployed collection, on a fork) | 1 | — | — | ✅ 1 / 1 |
+| **Total** | **142** | **26** | **23** | **✅ 191 / 191** |
 
 Every one of the 18 invariants held through all its runs, with 0 reverts. Among them:
 
@@ -103,6 +106,7 @@ Every one of the 18 invariants held through all its runs, with 0 reverts. Among 
 - **Trading post:** the balance equals fees plus what sellers are owed; listings move only open → sold or cancelled; the money adds up; no exploit gets through.
 - **VIP:** the balance is what was paid minus what was withdrawn; nobody gets VIP more than a year ahead; an airdrop is claimed once, and only by wallets on the list.
 - **Skins:** funds and supply add up; token blocks fill from the start; tokens stay what they were minted as; only the owner can do owner things.
+- **Skins' rotation** (`test/SkinsSchedule.t.sol`): nothing is ever minted while its skin is not on sale, by a buyer or by the owner; a skin on sale with stock is never refused to a paying buyer; a round's skins never change inside the round and every cycle brings the same skins back in the same rounds; at any time exactly two skins are on sale, the two the clock says. Fuzzed over any launch, round length, number of skins a round, deployment block and any collection.
 
 `forge coverage` (contracts in `src/`):
 
@@ -110,13 +114,13 @@ Every one of the 18 invariants held through all its runs, with 0 reverts. Among 
 |---|---|---|---|---|
 | ElyfishRevenue.sol | 100.00 % (153/153) | 99.50 % (201/202) | 100.00 % (45/45) | 100.00 % (27/27) |
 | ElyfishTradingPost.sol | 100.00 % (66/66) | 100.00 % (101/101) | 100.00 % (17/17) | 100.00 % (13/13) |
-| ElyfishVip.sol | 100.00 % (92/92) | 100.00 % (127/127) | 100.00 % (23/23) | 100.00 % (22/22) |
-| ElyfishSkins.sol | 100.00 % (117/117) | 99.43 % (173/174) | 96.30 % (26/27) | 100.00 % (28/28) |
+| ElyfishVip.sol | 100.00 % (106/106) | 100.00 % (155/155) | 100.00 % (30/30) | 100.00 % (25/25) |
+| ElyfishSkins.sol | 100.00 % (164/164) | 99.60 % (251/252) | 97.14 % (34/35) | 100.00 % (33/33) |
 | ElyfishPetEggs.sol | 98.36 % (60/61) | 100.00 % (88/88) | 100.00 % (15/15) | 93.33 % (14/15) |
 | testnet/MockLaunchRouter.sol | 100.00 % (27/27) | 100.00 % (34/34) | 100.00 % (7/7) | 100.00 % (7/7) |
 | testnet/MockLaunchToken.sol | 100.00 % (4/4) | 100.00 % (2/2) | — | 100.00 % (2/2) |
 | testnet/MockPriceFeed.sol | 100.00 % (17/17) | 100.00 % (11/11) | 100.00 % (2/2) | 100.00 % (6/6) |
-| **Total** | **99.81 %** (536/537) | **99.73 %** (737/739) | **99.26 %** (135/136) | **99.17 %** (119/120) |
+| **Total** | **99.82 %** (549/550) | **99.75 %** (796/798) | **99.30 %** (141/142) | **99.12 %** (112/113) |
 
 ## Getting started
 
@@ -141,7 +145,7 @@ Each script reads `PRIVATE_KEY` and its settings from the environment. Run it ag
 forge script script/Deploy.s.sol --rpc-url elysium_testnet --broadcast
 
 # VIP, pet eggs and the trading post (FEED from the step above; SIGNER = the game server's listing signer)
-FEED=0x… STALENESS=604800 forge script script/DeployVip.s.sol --rpc-url elysium_testnet --broadcast
+FEED=0x… STALENESS=604800 DISCOUNT_DAYS=180 forge script script/DeployVip.s.sol --rpc-url elysium_testnet --broadcast
 FEED=0x… STALENESS=604800 forge script script/DeployPetEggs.s.sol --rpc-url elysium_testnet --broadcast
 SIGNER=0x… forge script script/DeployTradingPost.s.sol --rpc-url elysium_testnet --broadcast
 
